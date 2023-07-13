@@ -1,0 +1,29 @@
+interfaces:
+  ge-0/0/3:
+    address: 10.13.0.11/31
+    type: core
+  ge-0/0/4:
+    address: 10.13.0.12/31
+    type: core
+  lo0:
+    type: loopback
+    unit:
+      '0':
+        address: 10.3.0.2/32
+        iso: 49.0010.0010.0010.0002.00
+protocols:
+  bgp:
+    core:
+      ibgp_as: 65000
+      neighbor:
+        10.3.0.1: true
+        10.3.0.3: true
+  mpls:
+    lsp_info:
+      vGW-2__vGW-1: 10.3.0.1
+      vGW-2__vGW-3: 10.3.0.3
+    optimize_timer: 5
+router_settings:
+  asn: 65302
+  ft_export_policy: PFE-LB
+  router_id: 10.3.0.2

@@ -1,0 +1,62 @@
+interfaces:
+  ge-0/0/0:
+    address: 10.13.0.8/31
+    type: core
+  ge-0/0/1:
+    address: 10.13.0.1/31
+    type: fabric
+  ge-0/0/2:
+    address: 10.13.0.3/31
+    type: fabric
+  ge-0/0/3:
+    address: 10.13.0.10/31
+    type: core
+  irb:
+    type: irb
+    unit:
+      '100':
+        address: 192.168.10.1/24
+        mac: 00:1c:73:00:00:01
+      '200':
+        address: 192.168.20.1/24
+        mac: 00:1c:73:00:00:01
+  lo0:
+    type: loopback
+    unit:
+      '0':
+        address: 10.3.0.1/32
+        iso: 49.0010.0010.0010.0001.00
+      '2':
+        address: 10.3.1.1/32
+protocols:
+  bgp:
+    core:
+      ibgp_as: 65000
+      neighbor:
+        10.3.0.2: true
+        10.3.0.3: true
+    overlay:
+      10.1.0.0:
+        local_address: 10.3.0.1
+        peer_as: 65100
+      10.1.0.1:
+        local_address: 10.3.0.1
+        peer_as: 65101
+    underlay:
+      10.13.0.0:
+        local_address: 10.13.0.1
+        peer_as: 65100
+      10.13.0.2:
+        local_address: 10.13.0.3
+        peer_as: 65101
+  isis_metric:
+    ge-0/0/0: 30
+  mpls:
+    lsp_info:
+      vGW-1__vGW-2: 10.3.0.2
+      vGW-1__vGW-3: 10.3.0.3
+    optimize_timer: 5
+router_settings:
+  asn: 65301
+  ft_export_policy: PFE-LB
+  router_id: 10.3.0.1

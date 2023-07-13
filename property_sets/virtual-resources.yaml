@@ -1,0 +1,26 @@
+l2_resources:
+  rd_last_octet: 65534
+  rt_last_octet: 100
+  vlans:
+    vn100:
+      l3_interface: irb.100
+      vlan_id: 100
+      vni: 10100
+    vn200:
+      l3_interface: irb.200
+      vlan_id: 200
+      vni: 10200
+  vni:
+    '10100': true
+    '10200': true
+routing_instances:
+  APP1-ZONE:
+    instance_type: vrf
+    interfaces:
+      irb.100: true
+      irb.200: true
+      lo0.2: true
+    ip_export_policy: BGP-AOS-Policy-APP1-ZONE
+    rd_last_octet: 2
+    rt_last_octet: 1
+    vni: 11000
