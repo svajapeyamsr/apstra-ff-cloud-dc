@@ -1,0 +1,142 @@
+policy-options {
+    {% if deploy_mode == "drain" %}
+    route-filter-list Drain {
+        0.0.0.0/0 upto /32;
+    }
+    {% endif %}
+    {% if property_sets.system_properties.protocols.bgp.underlay is defined %}
+    policy-statement AllPodNetworks {
+        term AllPodNetworks-10 {
+            from {
+                family inet;
+                protocol direct;
+            }
+            then {
+                community add DEFAULT_DIRECT_V4;
+                accept;
+            }
+        }
+        term AllPodNetworks-90 {
+            from {
+                protocol bgp;
+                route-filter 0.0.0.0/0 prefix-length-range /32-/32;
+            }
+            then accept;
+        }
+        term AllPodNetworks-100 {
+            then reject;
+        }
+    }
+    {% endif %}
+    {% if property_sets.system_properties.protocols.bgp.overlay is defined %}
+    policy-statement AllPodNetworks-APP1-ZONE {
+        term AllPodNetworks-APP1-ZONE-10 {
+            from {
+                family inet;
+                protocol direct;
+            }
+            then {
+                community add APP1-ZONE_COMMUNITY_V4;
+                accept;
+            }
+        }
+        term AllPodNetworks-APP1-ZONE-100 {
+            then reject;
+        }
+    }
+    policy-statement BGP-AOS-Policy {
+        term BGP-AOS-Policy-10 {
+            from policy AllPodNetworks;
+            then accept;
+        }
+        term BGP-AOS-Policy-50 {
+            from {
+                protocol evpn;
+                route-filter 0.0.0.0/0 prefix-length-range /32-/32;
+            }
+            then accept;
+        }
+        term BGP-AOS-Policy-100 {
+            then reject;
+        }
+    }
+    policy-statement BGP-AOS-Policy-APP1-ZONE {
+        term BGP-AOS-Policy-APP1-ZONE-10 {
+            from policy AllPodNetworks-APP1-ZONE;
+            then accept;
+        }
+        term BGP-AOS-Policy-APP1-ZONE-50 {
+            from {
+                protocol [ evpn bgp ];
+                route-filter 0.0.0.0/0 prefix-length-range /32-/32;
+            }
+            then {
+                community add APP1-ZONE_COMMUNITY_V4;
+                accept;
+            }
+        }
+        term BGP-AOS-Policy-APP1-ZONE-100 {
+            then reject;
+        }
+    }
+    {% endif %}
+    {% if deploy_mode == "drain" %}
+    policy-statement Drain {
+        term Drain-10 {
+            from {
+                family inet;
+                route-filter-list Drain;
+            }
+            then reject;
+        }
+    }
+    {% endif %}
+    {% if property_sets.system_properties.protocols.bgp.overlay is defined %}
+    policy-statement EVPN_EXPORT {
+        term EVPN_EXPORT-4095 {
+            then accept;
+        }
+    }
+    policy-statement LEAF_TO_SPINE_EVPN_OUT {
+        term LEAF_TO_SPINE_EVPN_OUT-20 {
+            then accept;
+        }
+    }
+    {% endif %}
+    {% if property_sets.system_properties.protocols.bgp.underlay is defined %}
+    policy-statement LEAF_TO_SPINE_FABRIC_OUT {
+        term LEAF_TO_SPINE_FABRIC_OUT-20 {
+            then accept;
+        }
+    }
+    {% endif %}
+    policy-statement PFE-LB {
+        then {
+            load-balance per-packet;
+        }
+    }
+    {% if property_sets.system_properties.protocols.bgp.core is defined %}
+    policy-statement advertise-hosts {
+        term advertise-hosts {
+            from {
+                family inet;
+                protocol [ direct bgp evpn ];
+            }
+            then {
+                next-hop self;
+                accept;
+            }
+        }
+    }
+    {% endif %}
+    {% if property_sets.system_properties.protocols.bgp.overlay is defined %}
+    community APP1-ZONE_COMMUNITY_V4 members [ 3:20007 21002:26000 ];
+    {% endif %}
+    {% if property_sets.system_properties.protocols.bgp.underlay is defined %}
+    community DEFAULT_DIRECT_V4 members [ 3:20007 21001:26000 ];
+    {% endif %}
+    {% if property_sets.system_properties.protocols.bgp.overlay is defined %}
+    community FROM_SPINE_EVPN_TIER members 0:14;
+    community FROM_SPINE_FABRIC_TIER members 0:15;
+    {% endif %}
+}

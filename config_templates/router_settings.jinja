@@ -1,0 +1,72 @@
+{% set asn = property_sets.system_properties.router_settings.asn %}
+{% set ft_export_policy = property_sets.system_properties.router_settings.ft_export_policy %}
+{% set router_id = property_sets.system_properties.router_settings.router_id %}
+{% set routing_instances = property_sets['virtual-resources.yaml'].routing_instances %}
+{% set l2_resources = property_sets['virtual-resources.yaml'].l2_resources %}
+{% if property_sets.system_properties.protocols.bgp.overlay is defined %}
+routing-instances {
+    {% for routing_instance in routing_instances %}
+    replace: {{ routing_instance }} {
+        instance-type {{ routing_instances[routing_instance].instance_type }};
+        {% if routing_instances[routing_instance].instance_type == "vrf" %}
+        routing-options {
+            multipath;
+            auto-export;
+        }
+        protocols {
+            evpn {
+                ip-prefix-routes {
+                    advertise direct-nexthop;
+                    encapsulation vxlan;
+                    vni {{ routing_instances[routing_instance].vni }};
+                    export {{ routing_instances[routing_instance].ip_export_policy }};
+                }
+            }
+        }
+        {% for interface in routing_instances[routing_instance].interfaces %}
+        {% if interface  %}
+        interface {{ interface }};
+        {% endif %}
+        {% endfor %}
+        route-distinguisher {{ router_id}}:{{ routing_instances[routing_instance].rd_last_octet }};
+        vrf-target target:{{ routing_instances[routing_instance].vni }}:{{ routing_instances[routing_instance].rt_last_octet }};
+        vrf-table-label;
+    }
+        {% endif %}
+    {% endfor %}
+}
+{% endif %}
+routing-options {
+    router-id {{ router_id }};
+    autonomous-system {{ asn }};
+    forwarding-table {
+        export {{ ft_export_policy }};
+        {% if property_sets.system_properties.protocols.bgp.overlay is defined %}
+        ecmp-fast-reroute;
+        chained-composite-next-hop {
+            ingress {
+                evpn;
+            }
+        }
+        {% endif %}
+    }
+}
+
+{% if property_sets.system_properties.protocols.bgp.overlay is defined %}
+switch-options {
+    vtep-source-interface lo0.0;
+    route-distinguisher {{ router_id }}:{{ l2_resources.rd_last_octet }};
+    vrf-target target:{{ l2_resources.rt_last_octet }}:{{ l2_resources.rt_last_octet }};
+}
+vlans {
+    {% for vlan in l2_resources.vlans %}
+    replace: {{ vlan }} {
+        vlan-id {{ l2_resources.vlans[vlan].vlan_id }};
+        l3-interface {{l2_resources.vlans[vlan].l3_interface }};
+        vxlan {
+            vni {{ l2_resources.vlans[vlan].vni }};
+        }
+    }
+    {% endfor %}
+}
+{% endif %}

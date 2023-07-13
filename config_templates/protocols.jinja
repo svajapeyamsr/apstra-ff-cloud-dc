@@ -1,0 +1,190 @@
+{% if property_sets.system_properties.protocols.bgp.underlay is defined %}
+{% set bgp_underlay = property_sets.system_properties.protocols.bgp.underlay %}
+{% endif %}
+{% if property_sets.system_properties.protocols.bgp.overlay is defined %}
+{% set bgp_overlay = property_sets.system_properties.protocols.bgp.overlay %}
+{% endif %}
+{% if property_sets.system_properties.protocols.bgp.core is defined %}
+{% set bgp_core = property_sets.system_properties.protocols.bgp.core %}
+{% endif %}
+{% if property_sets.system_properties.protocols.mpls.lsp_info is defined %}
+{% set lsp_info = property_sets.system_properties.protocols.mpls.lsp_info %}
+{% endif %}
+{% set loopback_ip = property_sets.system_properties.router_settings.router_id %}
+{% if property_sets.system_properties.protocols.isis_metric is defined %}
+{% set isis_interfaces_metric = property_sets.system_properties.protocols.isis_metric %}
+{% endif %}
+{% set l2_resources = property_sets['virtual-resources.yaml'].l2_resources %}
+protocols {
+    replace: bgp {
+    {% if property_sets.system_properties.protocols.bgp.underlay is defined %}
+    group l3clos-l {
+        type external;
+        multipath {
+            multiple-as;
+        }
+        bfd-liveness-detection {
+            minimum-interval 1000;
+            multiplier 3;
+        }
+        {% for neighbor in bgp_underlay %}
+        neighbor {{ neighbor }} {
+            local-address {{ property_sets.system_properties.protocols.bgp.underlay[neighbor].local_address }};
+            {% if deploy_mode == "drain" %}
+            import ( Drain );
+            {% endif %}
+            family inet {
+                unicast;
+            }
+            {% if deploy_mode == "drain" %}
+            export ( Drain );
+            {% else %}
+            export ( LEAF_TO_SPINE_FABRIC_OUT && BGP-AOS-Policy );
+            {% endif %}
+            peer-as {{ property_sets.system_properties.protocols.bgp.underlay[neighbor].peer_as }};
+        }
+        {% endfor %}
+        vpn-apply-export;
+    }
+    {% endif %}
+    {% if property_sets.system_properties.protocols.bgp.overlay is defined %}
+    group l3clos-l-evpn {
+        type external;
+        multihop {
+            ttl 1;
+            no-nexthop-change;
+        }
+        family inet {
+            unicast;
+        }
+        family evpn {
+            signaling {
+                loops 2;
+            }
+        }
+        multipath {
+            multiple-as;
+        }
+        bfd-liveness-detection {
+            minimum-interval 3000;
+            multiplier 3;
+        }
+        {% for neighbor in bgp_overlay %}
+        neighbor {{ neighbor }} {
+            local-address {{ loopback_ip }};
+            {% if deploy_mode == "drain" %}
+            import ( Drain );
+            {% endif %}
+            family evpn {
+                signaling;
+            }
+            {% if deploy_mode == "drain" %}
+            export ( Drain && EVPN_EXPORT );
+            {% else %}
+            export ( LEAF_TO_SPINE_EVPN_OUT && EVPN_EXPORT );
+            {% endif %}
+            peer-as {{ property_sets.system_properties.protocols.bgp.overlay[neighbor].peer_as }};
+        }
+        {% endfor %}
+        vpn-apply-export;
+    }
+    {% endif %}
+    {% if property_sets.system_properties.protocols.bgp.core is defined %}
+    group BGP-CORE {
+        type internal;
+        local-address {{ loopback_ip }};
+        {% if deploy_mode == "drain" %}
+        import ( Drain );
+        {% endif %}
+        family inet {
+            unicast;
+        }
+        family inet-vpn {
+            unicast;
+        }
+        family evpn {
+            signaling;
+        }
+        {% if deploy_mode == "drain" %}
+        export ( Drain );
+        {% else %}
+        export advertise-hosts;
+        {% endif %}
+        local-as {{ property_sets.system_properties.protocols.bgp.core.ibgp_as }};
+        multipath;
+        bfd-liveness-detection {
+            minimum-interval 1000;
+            multiplier 3;
+        }
+        {% for neighbor in bgp_core.neighbor %}
+        neighbor {{ neighbor }};
+        {% endfor %}
+        vpn-apply-export;
+    }
+    {% endif %}
+    log-updown;
+    graceful-restart;
+    multipath;
+    }
+    {% if property_sets.system_properties.protocols.bgp.overlay is defined %}
+    replace: evpn {
+        encapsulation vxlan;
+        default-gateway do-not-advertise;
+        extended-vni-list all;
+        vni-options {
+            {% for vni in l2_resources.vni %}
+            {% if vni %}
+            vni {{ vni }} {
+                vrf-target target:{{vni}}:1;
+            }
+            {% endif %}
+            {% endfor %}
+        }
+
+    }
+    {% endif %}
+    replace: isis {
+    {% for interface in property_sets.system_properties.interfaces %}
+    {% if property_sets.system_properties.interfaces[interface].type == "core" %}
+    {% if deploy_mode == "drain" %}
+        interface {{ interface }}.0 {
+            level 2 metric 10000;
+            point-to-point;
+        }
+    {% else %}
+        interface {{ interface }}.0 {
+            {% if isis_interfaces_metric is defined %}
+            {% if interface in isis_interfaces_metric %}
+            level 2 metric {{ isis_interfaces_metric[interface]}};
+            {% endif %}
+            {% endif %}
+            point-to-point;
+        }
+    {% endif %}
+    {% endif %}
+    {% endfor %}
+        interface lo0.0 {
+            passive;
+        }
+        level 2 wide-metrics-only;
+        level 1 disable;
+    }
+    replace: ldp {
+        interface all;
+    }
+    replace: mpls {
+        {% if property_sets.system_properties.protocols.mpls.optimize_timer is defined %}
+        optimize-timer {{ property_sets.system_properties.protocols.mpls.optimize_timer }};
+        {% endif %}
+    {% for lsp in lsp_info %}
+        label-switched-path {{ lsp }} {
+            to {{ lsp_info[lsp] }};
+            node-link-protection;
+        }
+    {% endfor %}
+        interface all;
+    }
+    replace: rsvp {
+        interface all;
+    }
+}

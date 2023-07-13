@@ -1,0 +1,55 @@
+{% set interfaces = property_sets.system_properties.interfaces %}
+interfaces {
+{% for interface in interfaces %}
+    {% if interfaces[interface].type == "loopback" %}
+    replace: {{ interface }} {
+    {% for unit in interfaces[interface].unit %}
+        unit {{ unit }} {
+            family inet {
+                address {{ interfaces[interface].unit[unit].address }};
+            }
+
+            {% if interfaces[interface].unit[unit].iso is defined %}
+            family iso {
+                address {{ interfaces[interface].unit[unit].iso }};
+            }
+            {% endif %}
+        }
+    {% endfor %}
+    }
+    {% elif interfaces[interface].type == "core" %}
+    replace: {{ interface }} {
+        mtu 9192;
+        unit 0 {
+            family inet {
+                address {{ interfaces[interface].address }};
+            }
+            family iso;
+            family mpls;
+        }
+    }
+    {% elif interfaces[interface].type == "fabric" %}
+    replace: {{ interface }} {
+        mtu 9192;
+        unit 0 {
+            family inet {
+                address {{ interfaces[interface].address }};
+            }
+        }
+    }
+    {% elif interfaces[interface].type == "irb" %}
+    replace: {{ interface }} {
+        mtu 9000;
+        {% for unit in interfaces[interface].unit %}
+            unit {{ unit }} {
+                family inet {
+                    address {{ interfaces[interface].unit[unit].address }};
+                }
+
+                mac {{ interfaces[interface].unit[unit].mac }};
+            }
+        {% endfor %}
+        }
+    {% endif %}
+{% endfor %}
+}

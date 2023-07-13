@@ -1,0 +1,14 @@
+{% if deploy_mode in ["deploy", "drain"] %}
+system {
+    host-name {{ hostname }};
+}
+{% include "interfaces.jinja" %}
+
+{% include "policies.jinja" %}
+
+{% include "router_settings.jinja" %}
+
+{% include "protocols.jinja" %}
+
+{% elif deploy_mode == "ready" %}
+{% endif %}
