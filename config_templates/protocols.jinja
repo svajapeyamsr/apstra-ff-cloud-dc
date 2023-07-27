@@ -99,12 +99,18 @@ protocols {
         family inet {
             unicast;
         }
+        {% for tag in system_tags %}
+        {% if tag == "L3VPN" %}
         family inet-vpn {
             unicast;
         }
+        {% endif %}
+        {% if tag == "EVPN" %}
         family evpn {
             signaling;
         }
+        {% endif %}
+        {% endfor %}
         {% if deploy_mode == "drain" %}
         export ( Drain );
         {% else %}
